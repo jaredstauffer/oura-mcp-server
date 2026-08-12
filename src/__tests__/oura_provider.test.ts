@@ -31,18 +31,10 @@ describe('OuraProvider', () => {
       }
     });
 
-    client = new Client(
-      {
-        name: 'test-client',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          resources: {},
-          tools: {},
-        },
-      }
-    );
+    client = new Client({
+      name: 'test-client',
+      version: '1.0.0',
+    });
 
     await client.connect(transport);
   });

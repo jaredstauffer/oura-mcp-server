@@ -34,9 +34,9 @@ export class OuraProvider {
     const url = new URL(`${this.auth.getBaseUrl()}/usercollection/${endpoint}`);
     
     if (params) {
-      // Log the incoming date parameters
-      console.log(`Fetching ${endpoint} with dates:`, params);
-      
+      // Log to stderr: stdout is the JSON-RPC channel for the stdio transport
+      console.error(`Fetching ${endpoint} with dates:`, params);
+
       Object.entries(params).forEach(([key, value]) => {
         url.searchParams.append(key, value);
       });
@@ -51,7 +51,7 @@ export class OuraProvider {
     const data = await response.json();
     // Log the response data dates
     if (data.data && data.data.length > 0) {
-      console.log(`Response data for ${endpoint}:`, data.data.map((d: { day?: string; timestamp?: string }) => d.day || d.timestamp));
+      console.error(`Response data for ${endpoint}:`, data.data.map((d: { day?: string; timestamp?: string }) => d.day || d.timestamp));
     }
     return data;
   }
@@ -59,8 +59,8 @@ export class OuraProvider {
   private initializeResources(): void {
     // Define the date range schema for tools
     const dateRangeSchema = {
-      startDate: z.string(),
-      endDate: z.string()
+      startDate: z.string().describe('Start of the range, inclusive, as YYYY-MM-DD'),
+      endDate: z.string().describe('End of the range, inclusive, as YYYY-MM-DD')
     };
 
     // Add resources and tools for each endpoint
@@ -84,9 +84,15 @@ export class OuraProvider {
 
     // Add resources
     endpoints.forEach(({ name, requiresDates }) => {
-      this.server.resource(
+      this.server.registerResource(
         name,
         `oura://${name}`,
+        {
+          description: requiresDates
+            ? `Oura ${name} data for the last 7 days.`
+            : `Oura ${name} data.`,
+          mimeType: 'application/json'
+        },
         async (uri) => {
           let data;
           if (requiresDates) {
@@ -110,9 +116,12 @@ export class OuraProvider {
 
     // Add tools
     endpoints.filter(e => e.requiresDates).forEach(({ name }) => {
-      this.server.tool(
+      this.server.registerTool(
         `get_${name}`,
-        dateRangeSchema,
+        {
+          description: `Fetch Oura ${name} records over an inclusive date range.`,
+          inputSchema: dateRangeSchema
+        },
         async ({ startDate, endDate }) => {
           const data = await this.fetchOuraData(name, {
             start_date: startDate,

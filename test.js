@@ -19,7 +19,7 @@ async function main() {
   
   // Create MCP client
   const transport = new StdioClientTransport({
-    command: '/opt/homebrew/bin/node',
+    command: process.execPath,
     args: [serverPath],
     env: {
       OURA_PERSONAL_ACCESS_TOKEN: process.env.OURA_PERSONAL_ACCESS_TOKEN,
