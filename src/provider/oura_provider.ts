@@ -34,9 +34,10 @@ export class OuraProvider {
     const url = new URL(`${this.auth.getBaseUrl()}/usercollection/${endpoint}`);
     
     if (params) {
-      // Log the incoming date parameters
-      console.log(`Fetching ${endpoint} with dates:`, params);
-      
+      // Diagnostics must go to stderr: under the stdio transport, stdout is the
+      // JSON-RPC channel and anything else written there corrupts the stream.
+      console.error(`Fetching ${endpoint} with dates:`, params);
+
       Object.entries(params).forEach(([key, value]) => {
         url.searchParams.append(key, value);
       });
@@ -51,7 +52,7 @@ export class OuraProvider {
     const data = await response.json();
     // Log the response data dates
     if (data.data && data.data.length > 0) {
-      console.log(`Response data for ${endpoint}:`, data.data.map((d: { day?: string; timestamp?: string }) => d.day || d.timestamp));
+      console.error(`Response data for ${endpoint}:`, data.data.map((d: { day?: string; timestamp?: string }) => d.day || d.timestamp));
     }
     return data;
   }
