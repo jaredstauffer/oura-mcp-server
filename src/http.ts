@@ -1,4 +1,6 @@
 import { config as dotenvConfig } from 'dotenv';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
@@ -6,7 +8,9 @@ import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middlew
 import { SingleUserOAuthProvider } from './auth/oauth_provider.js';
 import { createOuraProvider, requireEnv } from './config.js';
 
-dotenvConfig();
+// Resolve .env against the repo root rather than the caller's cwd, matching the
+// stdio entrypoint. In hosted deployments the platform supplies the env instead.
+dotenvConfig({ path: resolve(dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
 const SCOPES = ['oura:read'];
 

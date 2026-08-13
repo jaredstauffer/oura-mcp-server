@@ -60,8 +60,8 @@ export class OuraProvider {
   private initializeResources(): void {
     // Define the date range schema for tools
     const dateRangeSchema = {
-      startDate: z.string(),
-      endDate: z.string()
+      startDate: z.string().describe('Start of the range, inclusive, as YYYY-MM-DD'),
+      endDate: z.string().describe('End of the range, inclusive, as YYYY-MM-DD')
     };
 
     // Add resources and tools for each endpoint
@@ -85,9 +85,15 @@ export class OuraProvider {
 
     // Add resources
     endpoints.forEach(({ name, requiresDates }) => {
-      this.server.resource(
+      this.server.registerResource(
         name,
         `oura://${name}`,
+        {
+          description: requiresDates
+            ? `Oura ${name} data for the last 7 days.`
+            : `Oura ${name} data.`,
+          mimeType: 'application/json'
+        },
         async (uri) => {
           let data;
           if (requiresDates) {
@@ -111,9 +117,12 @@ export class OuraProvider {
 
     // Add tools
     endpoints.filter(e => e.requiresDates).forEach(({ name }) => {
-      this.server.tool(
+      this.server.registerTool(
         `get_${name}`,
-        dateRangeSchema,
+        {
+          description: `Fetch Oura ${name} records over an inclusive date range.`,
+          inputSchema: dateRangeSchema
+        },
         async ({ startDate, endDate }) => {
           const data = await this.fetchOuraData(name, {
             start_date: startDate,
