@@ -127,17 +127,15 @@ Then open Claude on your phone and ask the same thing. It works there too, with 
 
 The server exposes thirteen tools covering the Oura v2 API:
 
-| Area | What you get |
-| --- | --- |
-| Sleep | Nightly sleep score, plus detailed per night stage durations, heart rate, HRV, and breathing rate |
-| Readiness | Daily readiness score, contributors, and body temperature deviation |
-| Activity | Activity score, calories, MET minutes, and time at each activity level |
-| Workouts | Activity type, intensity, calories, distance, start and end times |
-| Sessions | Breathing exercises, meditation, and naps |
-| Stress | Daily time in high stress and in recovery |
-| Resilience | A longer term measure of how well you are handling stress |
-| Health markers | SpO2, cardiovascular age, VO2 max |
-| Rest mode | Periods when you had rest mode switched on |
+* **Sleep.** Nightly sleep score, plus detailed per night stage durations, heart rate, HRV, and breathing rate.
+* **Readiness.** Daily readiness score, its contributors, and body temperature deviation.
+* **Activity.** Activity score, calories, MET minutes, and time at each activity level.
+* **Workouts.** Activity type, intensity, calories, distance, start and end times.
+* **Sessions.** Breathing exercises, meditation, and naps.
+* **Stress.** Daily time spent in high stress and in recovery.
+* **Resilience.** A longer term measure of how well you are handling stress.
+* **Health markers.** SpO2, cardiovascular age, and VO2 max.
+* **Rest mode.** Periods when you had rest mode switched on.
 
 Each tool describes itself to Claude, so you do not have to name them. Ask about sleep stages and Claude reaches for the detailed sleep data. Ask how well you slept and it reaches for the score instead.
 

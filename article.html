@@ -1,0 +1,367 @@
+<title>Oura Ring in Claude</title>
+<style>
+  :root {
+    --bg: #FBFBFD;
+    --surface: #F0F2F7;
+    --ink: #14181F;
+    --muted: #58606E;
+    --accent: #0E6C77;
+    --rule: #DCE0E8;
+    --code-bg: #F4F6FA;
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1116;
+      --surface: #161A21;
+      --ink: #E7EAEF;
+      --muted: #98A2B1;
+      --accent: #52C9D6;
+      --rule: #262C36;
+      --code-bg: #141922;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0E1116;
+    --surface: #161A21;
+    --ink: #E7EAEF;
+    --muted: #98A2B1;
+    --accent: #52C9D6;
+    --rule: #262C36;
+    --code-bg: #141922;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    margin: 0;
+    padding: 4rem 1.5rem 6rem;
+  }
+
+  article {
+    max-width: 40rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.35rem;
+  }
+
+  h1 {
+    font-family: var(--sans);
+    font-size: clamp(1.9rem, 5vw, 2.6rem);
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.14;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: 1.15rem;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  h2 {
+    font-family: var(--sans);
+    font-size: 1.4rem;
+    font-weight: 650;
+    letter-spacing: -0.014em;
+    line-height: 1.25;
+    text-wrap: balance;
+    margin: 2rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-size: 1.05rem;
+    font-weight: 650;
+    margin: 1.4rem 0 0;
+  }
+
+  p, li { margin: 0; }
+
+  ul, ol {
+    margin: 0;
+    padding-left: 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  strong { font-weight: 650; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    margin: 0;
+  }
+
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+
+  blockquote {
+    margin: 0;
+    padding: 0.85rem 1.1rem;
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    color: var(--muted);
+    font-size: 0.97rem;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: 2rem 0 0;
+  }
+
+  .credit {
+    font-size: 0.95rem;
+    color: var(--muted);
+    font-style: italic;
+  }
+</style>
+
+<article>
+
+<h1>How to Ask Claude About Your Oura Ring Data, Including From Your Phone</h1>
+
+<p class="standfirst">Oura gives you a lot of numbers every morning. A sleep score, a readiness score, HRV, resting heart rate, activity. The app shows you each one on its own, but it is not great at answering questions that cut across them.</p>
+
+<p>Things like "has my resting heart rate crept up since I started training again?" or "which nights this month did I actually get enough deep sleep?"</p>
+
+<p>Claude is good at those questions. It just needs access to your data.</p>
+
+<p>This guide walks through setting that up. When you are done, you can ask Claude about your Oura data on the web, on the desktop app, and on your phone. The whole thing runs on a small server you control, and it takes about fifteen minutes.</p>
+
+<h2>What you are building</h2>
+
+<p>There is a standard called the Model Context Protocol, or MCP, that lets Claude talk to outside services. An MCP server sits between Claude and some data source and exposes a set of tools that Claude can call.</p>
+
+<p>Most MCP servers you find run on your own machine. That works fine for desktop use, but it means your phone cannot reach them. Your phone is not going to connect to a program running on your laptop.</p>
+
+<p>So this one is hosted. You deploy it to Railway, it gets a public web address, and you connect Claude to that address. Because the connection is tied to your Claude account rather than to one device, it shows up everywhere you use Claude.</p>
+
+<p>Your Oura token stays on the server. It is never sent to Claude. The server is protected by a password you choose plus a standard OAuth sign in, so a stranger who finds the URL cannot read your health data.</p>
+
+<h2>What you need</h2>
+
+<ul>
+  <li>An Oura account and a ring with some data in it</li>
+  <li>A GitHub account, free</li>
+  <li>A Railway account, which has a free starting tier and costs a few dollars a month after that</li>
+  <li>A paid Claude plan, since custom connectors are not available on the free tier</li>
+  <li>About fifteen minutes</li>
+</ul>
+
+<h2>Step 1: Get your Oura token</h2>
+
+<p>Go to <a href="https://cloud.ouraring.com/personal-access-tokens">cloud.ouraring.com/personal-access-tokens</a> and sign in with your Oura account.</p>
+
+<p>Create a new personal access token. Give it any name you like. Copy the token somewhere safe as soon as it appears, because Oura will not show it to you again.</p>
+
+<p>This token is what the server uses to read your data. Treat it like a password.</p>
+
+<h2>Step 2: Fork the repository</h2>
+
+<p>Go to <a href="https://github.com/jaredstauffer/oura-mcp-server">github.com/jaredstauffer/oura-mcp-server</a> and click Fork in the top right.</p>
+
+<p>Forking gives you your own copy under your own GitHub account. You want this rather than deploying from my copy directly, for two reasons. Railway connects to repositories you own, and having your own copy means you can change things later without asking anyone.</p>
+
+<h2>Step 3: Deploy it to Railway</h2>
+
+<p>Sign in at <a href="https://railway.com">railway.com</a> with your GitHub account.</p>
+
+<p>Click New Project, then Deploy from GitHub repo, and pick your fork of oura-mcp-server. If you do not see it in the list, Railway needs permission to view it. Go to <a href="https://github.com/settings/installations">github.com/settings/installations</a>, click Configure next to Railway, and either add the repository to the allowed list or switch to All repositories.</p>
+
+<p>Railway will start building straight away. The first build will succeed but the server will not start yet, because it does not have its settings. That is expected, and the next step fixes it.</p>
+
+<h2>Step 4: Add three settings</h2>
+
+<p>Open your service in Railway and go to the Variables tab. Add these three.</p>
+
+<h3>OURA_PERSONAL_ACCESS_TOKEN</h3>
+<p>The token you copied in step 1.</p>
+
+<h3>MCP_AUTH_PASSWORD</h3>
+<p>A password you invent right now. You will type this once, when you connect Claude. Make it a real password, not <code>oura123</code>. This is the only thing standing between the public internet and your health data.</p>
+
+<h3>OAUTH_SIGNING_SECRET</h3>
+<p>A long random string. Generate one by running this in a terminal:</p>
+
+<pre><code>openssl rand -hex 32</code></pre>
+
+<p>If you are on Windows without openssl, any random 64 character string of letters and numbers will do. Paste the result in.</p>
+
+<p>There is one optional fourth setting worth adding.</p>
+
+<h3>OURA_TIMEZONE</h3>
+<p>Your timezone in IANA format, for example <code>America/Phoenix</code> or <code>Europe/London</code>. This decides where your days start and end. Without it the server assumes UTC, which will put your "last 7 days" off by a day for part of every day if you are not in the UK. You can find your zone in <a href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones">this list</a>.</p>
+
+<h2>Step 5: Give it a public address</h2>
+
+<p>Still in Railway, go to Settings, find the Networking section, and click Generate Domain under Public Networking.</p>
+
+<p>Railway will give you an address like <code>oura-mcp-server-production.up.railway.app</code>. Copy it.</p>
+
+<p>Now redeploy. This part matters and it is easy to miss. The server reads its own address from a variable Railway only creates once the domain exists, so a deployment that ran before you generated the domain will not know its own name. Trigger a fresh deploy from the Railway dashboard.</p>
+
+<h2>Step 6: Check that it is running</h2>
+
+<p>Open this in your browser, using your own domain:</p>
+
+<pre><code>https://your-app.up.railway.app/healthz</code></pre>
+
+<p>You should see:</p>
+
+<pre><code>{"status": "ok"}</code></pre>
+
+<p>If you see that, the server is up and you are nearly finished.</p>
+
+<p>If instead the deployment keeps restarting, open the deploy logs. The server checks its settings when it starts and refuses to run with a piece missing, and it names the missing piece in plain language. Add whatever it asks for and it will come up.</p>
+
+<h2>Step 7: Connect Claude</h2>
+
+<p>Go to <a href="https://claude.ai">claude.ai</a>, open Settings, and find Connectors. Click Add custom connector.</p>
+
+<p>For the URL, enter your domain with <code>/mcp</code> at the end:</p>
+
+<pre><code>https://your-app.up.railway.app/mcp</code></pre>
+
+<p>That last part is important. The bare domain will not work.</p>
+
+<p>Leave the OAuth client ID and secret fields empty. The server handles registration by itself, so there is nothing for you to fill in there.</p>
+
+<p>Click through, and a sign in page will appear asking for a password. This is the <code>MCP_AUTH_PASSWORD</code> you chose in step 4. Enter it, and you are connected.</p>
+
+<h2>Step 8: Ask it something</h2>
+
+<p>Start a new conversation and try one of these:</p>
+
+<ul>
+  <li>How did I sleep last night?</li>
+  <li>What has my readiness been over the past two weeks?</li>
+  <li>Compare my deep sleep in July against August.</li>
+  <li>Have my workouts affected my resting heart rate?</li>
+</ul>
+
+<p>Then open Claude on your phone and ask the same thing. It works there too, with no extra setup, because the connector belongs to your account rather than to a device.</p>
+
+<h2>What it can actually read</h2>
+
+<p>The server exposes thirteen tools covering the Oura v2 API:</p>
+
+<ul>
+  <li><strong>Sleep.</strong> Nightly sleep score, plus detailed per night stage durations, heart rate, HRV, and breathing rate.</li>
+  <li><strong>Readiness.</strong> Daily readiness score, its contributors, and body temperature deviation.</li>
+  <li><strong>Activity.</strong> Activity score, calories, MET minutes, and time at each activity level.</li>
+  <li><strong>Workouts.</strong> Activity type, intensity, calories, distance, start and end times.</li>
+  <li><strong>Sessions.</strong> Breathing exercises, meditation, and naps.</li>
+  <li><strong>Stress.</strong> Daily time spent in high stress and in recovery.</li>
+  <li><strong>Resilience.</strong> A longer term measure of how well you are handling stress.</li>
+  <li><strong>Health markers.</strong> SpO2, cardiovascular age, and VO2 max.</li>
+  <li><strong>Rest mode.</strong> Periods when you had rest mode switched on.</li>
+</ul>
+
+<p>Each tool describes itself to Claude, so you do not have to name them. Ask about sleep stages and Claude reaches for the detailed sleep data. Ask how well you slept and it reaches for the score instead.</p>
+
+<h2>A note on privacy</h2>
+
+<p>Worth being clear about where things sit.</p>
+
+<p>Your Oura token lives in Railway's environment variables and is used only by your server to call Oura. It never reaches Claude.</p>
+
+<p>Your health data does pass through Claude when you ask about it, in the same way anything you type into a conversation does. If that matters to you, read Anthropic's privacy policy before you start.</p>
+
+<p>The server itself is locked. Every request has to carry a valid token, and getting one means signing in with your password through a standard OAuth flow with PKCE. Sign in attempts are rate limited, so the password cannot be guessed by brute force. If you ever want to cut off access, change <code>OAUTH_SIGNING_SECRET</code> in Railway and every existing session stops working immediately.</p>
+
+<h2>If something goes wrong</h2>
+
+<p><strong>Railway cannot find your repository.</strong> It needs permission. Go to <a href="https://github.com/settings/installations">github.com/settings/installations</a>, click Configure next to Railway, and grant access to the repository.</p>
+
+<p><strong>The build fails.</strong> Check that you forked the repository rather than copying files across by hand. The repository includes a <code>railway.json</code> that tells Railway how to build it, and without that file Railway guesses.</p>
+
+<p><strong>The service keeps restarting.</strong> A setting is missing. The deploy log will name it. This is deliberate: the server would rather refuse to start than run in a state where it half works.</p>
+
+<p><strong>Claude will not connect.</strong> Check that your connector URL ends in <code>/mcp</code>. Then check that the last line of your deploy log shows the same address you are actually using. If they do not match, redeploy after generating the domain.</p>
+
+<p><strong>Claude connects but says it cannot get your data.</strong> Your Oura token is probably wrong or expired. Generate a fresh one and update the variable in Railway.</p>
+
+<p><strong>The dates look off by a day.</strong> Set <code>OURA_TIMEZONE</code> to your own zone and redeploy.</p>
+
+<h2>Running it locally instead</h2>
+
+<p>If you only want this on your laptop and do not care about phone access, you can skip Railway entirely. Clone your fork, then:</p>
+
+<pre><code>npm install
+npm run build</code></pre>
+
+<p>For Claude Code:</p>
+
+<pre><code>claude mcp add oura -s user \
+  -e OURA_PERSONAL_ACCESS_TOKEN=your_token \
+  -- "$(command -v node)" /full/path/to/oura-mcp-server/build/index.js</code></pre>
+
+<p>For Claude Desktop, open Settings, then Developer, then Edit Config, and add:</p>
+
+<pre><code>{
+  "mcpServers": {
+    "oura": {
+      "command": "/full/path/to/node",
+      "args": ["/full/path/to/oura-mcp-server/build/index.js"],
+      "env": { "OURA_PERSONAL_ACCESS_TOKEN": "your_token" }
+    }
+  }
+}</code></pre>
+
+<p>Use full paths in both cases. Claude Desktop does not inherit your shell's PATH, so a bare <code>node</code> will often not be found.</p>
+
+<h2>Where to go from here</h2>
+
+<p>The repository is yours now. A few things people tend to want next: more Oura endpoints, since heart rate and tags are in the API but not yet exposed here; a scheduled weekly summary; or connecting a second data source alongside it, so Claude can look at sleep next to your calendar or your training log.</p>
+
+<hr>
+
+<p class="credit">This is built on top of <a href="https://github.com/elizabethtrykin/oura-mcp">oura-mcp</a> by <a href="https://github.com/elizabethtrykin">elizabethtrykin</a>, which is where the original server and its Oura API work came from. This version adds hosted deployment with OAuth so it can be reached from the web and mobile apps, along with pagination, tests, and a few fixes. Thanks to Elizabeth for the foundation.</p>
+
+</article>
