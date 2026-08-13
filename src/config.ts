@@ -18,10 +18,7 @@ export function createOuraProvider(): OuraProvider {
 
   return new OuraProvider({
     personalAccessToken,
-    // Phoenix rather than UTC: this deployment serves one person in Arizona, and
-    // a UTC window is already a day out by early evening local time. Arizona
-    // does not observe DST, so this is MST year-round.
-    timezone: process.env.OURA_TIMEZONE || 'America/Phoenix'
+    timezone: process.env.OURA_TIMEZONE || 'UTC'
   });
 }
 

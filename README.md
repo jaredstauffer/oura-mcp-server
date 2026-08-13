@@ -27,10 +27,10 @@ npm run build
 2. Create a [Personal Access Token](https://cloud.ouraring.com/personal-access-tokens)
 
 Set it as `OURA_PERSONAL_ACCESS_TOKEN`. See `.env.example` for the full list of
-variables. `OURA_TIMEZONE` decides what "the last 7 days" means for the resource
-defaults; it defaults to `America/Phoenix`, so set it to your own IANA zone if
-you are elsewhere. Getting this wrong shifts the window by a day — UTC is already
-a day ahead of Phoenix by early evening local time.
+variables. Set `OURA_TIMEZONE` to your IANA zone (e.g. `America/Phoenix`) — it
+decides what "the last 7 days" means for the resource defaults. It falls back to
+UTC, which shifts the window by a day for part of every day anywhere west of
+Greenwich, so it is worth setting explicitly.
 
 Personal access tokens are the only supported credential. Earlier versions also
 accepted OAuth2 client id/secret, but nothing ever ran the authorization-code
