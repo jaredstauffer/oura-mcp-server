@@ -3,23 +3,33 @@ import { z } from 'zod';
 import { OuraAuth } from './oura_connection.js';
 
 export interface OuraConfig {
-  personalAccessToken?: string;
-  clientId?: string;
-  clientSecret?: string;
-  redirectUri?: string;
+  personalAccessToken: string;
+  /** IANA zone used to work out what "the last 7 days" means. Defaults to UTC. */
+  timezone?: string;
 }
+
+/** Stop following next_token eventually, so a pathological range can't loop forever. */
+const MAX_PAGES = 25;
+
+/**
+ * Per-endpoint fields holding interval samples - one value every 30 seconds or
+ * 5 minutes. A month of `sleep` with these included runs to megabytes, which
+ * crowds out the conversation it was meant to inform, so they are dropped
+ * unless explicitly asked for.
+ */
+const INTERVAL_SAMPLE_FIELDS: Record<string, string[]> = {
+  sleep: ['heart_rate', 'hrv', 'movement_30_sec', 'sleep_phase_5_min'],
+  daily_activity: ['class_5_min', 'met']
+};
 
 export class OuraProvider {
   private server: McpServer;
   private auth: OuraAuth;
+  private timezone: string;
 
   constructor(config: OuraConfig) {
-    this.auth = new OuraAuth(
-      config.personalAccessToken,
-      config.clientId,
-      config.clientSecret,
-      config.redirectUri
-    );
+    this.auth = new OuraAuth(config.personalAccessToken);
+    this.timezone = config.timezone || 'UTC';
 
     this.server = new McpServer({
       name: "oura-provider",
@@ -29,39 +39,169 @@ export class OuraProvider {
     this.initializeResources();
   }
 
-  private async fetchOuraData(endpoint: string, params?: Record<string, string>): Promise<any> {
+  /** Today's date in the configured zone, as YYYY-MM-DD. */
+  private localDate(offsetMs = 0): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date(Date.now() + offsetMs));
+  }
+
+  private async describeFailure(endpoint: string, response: Response): Promise<Error> {
+    let detail = '';
+    try {
+      detail = (await response.text()).slice(0, 300);
+    } catch {
+      // Body already consumed or unreadable; the status is enough.
+    }
+
+    switch (response.status) {
+      case 401:
+        return new Error(
+          `Oura rejected the credentials while fetching ${endpoint} (401). The ` +
+            'OURA_PERSONAL_ACCESS_TOKEN is missing, expired, or revoked - issue a new one at ' +
+            'https://cloud.ouraring.com/personal-access-tokens.'
+        );
+      case 403:
+        return new Error(
+          `Oura refused access to ${endpoint} (403). The token is valid but not permitted to ` +
+            'read this data, which usually means the endpoint needs a scope the token lacks.'
+        );
+      case 429: {
+        const retryAfter = response.headers.get('retry-after');
+        return new Error(
+          `Oura rate limit hit while fetching ${endpoint} (429).` +
+            (retryAfter ? ` Retry after ${retryAfter}s.` : ' Try again shortly, or narrow the date range.')
+        );
+      }
+      case 400:
+        return new Error(
+          `Oura rejected the request for ${endpoint} (400). Check that the dates are valid ` +
+            `YYYY-MM-DD values and that the start is not after the end. ${detail}`
+        );
+      default:
+        return new Error(
+          `Failed to fetch ${endpoint}: ${response.status} ${response.statusText}. ${detail}`.trim()
+        );
+    }
+  }
+
+  private stripIntervalSamples(endpoint: string, records: unknown[]): unknown[] {
+    const verbose = INTERVAL_SAMPLE_FIELDS[endpoint];
+    if (!verbose) {
+      return records;
+    }
+
+    return records.map(record => {
+      if (!record || typeof record !== 'object') {
+        return record;
+      }
+
+      const trimmed: Record<string, unknown> = { ...(record as Record<string, unknown>) };
+      for (const field of verbose) {
+        delete trimmed[field];
+      }
+      return trimmed;
+    });
+  }
+
+  /**
+   * Fetches an endpoint, following Oura's next_token pagination to completion.
+   *
+   * Without this, any range wider than a single page came back silently
+   * truncated - the caller got a short `data` array with no indication that
+   * more existed, and summarised it as though it were the whole story.
+   */
+  private async fetchOuraData(
+    endpoint: string,
+    params?: Record<string, string>,
+    options: { includeIntervalSamples?: boolean } = {}
+  ): Promise<any> {
     const headers = await this.auth.getHeaders();
-    const url = new URL(`${this.auth.getBaseUrl()}/usercollection/${endpoint}`);
-    
+
     if (params) {
       // Diagnostics must go to stderr: under the stdio transport, stdout is the
       // JSON-RPC channel and anything else written there corrupts the stream.
       console.error(`Fetching ${endpoint} with dates:`, params);
-
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.append(key, value);
-      });
     }
 
-    const response = await fetch(url.toString(), { headers });
+    const collected: unknown[] = [];
+    let nextToken: string | undefined;
+    let pages = 0;
+    let singleDocument: any;
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${endpoint}: ${response.statusText}`);
+    do {
+      const url = new URL(`${this.auth.getBaseUrl()}/usercollection/${endpoint}`);
+
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          url.searchParams.append(key, value);
+        });
+      }
+      if (nextToken) {
+        url.searchParams.set('next_token', nextToken);
+      }
+
+      const response = await fetch(url.toString(), { headers });
+
+      if (!response.ok) {
+        throw await this.describeFailure(endpoint, response);
+      }
+
+      const body = await response.json();
+
+      // Single-document endpoints (personal_info) have no `data` array.
+      if (!Array.isArray(body?.data)) {
+        singleDocument = body;
+        break;
+      }
+
+      collected.push(...body.data);
+      nextToken = body.next_token ?? undefined;
+      pages += 1;
+    } while (nextToken && pages < MAX_PAGES);
+
+    if (singleDocument !== undefined) {
+      return singleDocument;
     }
 
-    const data = await response.json();
-    // Log the response data dates
-    if (data.data && data.data.length > 0) {
-      console.error(`Response data for ${endpoint}:`, data.data.map((d: { day?: string; timestamp?: string }) => d.day || d.timestamp));
-    }
-    return data;
+    const records = options.includeIntervalSamples
+      ? collected
+      : this.stripIntervalSamples(endpoint, collected);
+
+    console.error(`Fetched ${records.length} ${endpoint} record(s) across ${pages} page(s)`);
+
+    return {
+      data: records,
+      ...(nextToken
+        ? {
+            truncated: true,
+            note: `Stopped after ${MAX_PAGES} pages. Narrow the date range to see the rest.`
+          }
+        : {})
+    };
   }
 
   private initializeResources(): void {
-    // Define the date range schema for tools
+    // Define the date range schema for tools. The regex catches a malformed date
+    // here rather than letting Oura reject it as an opaque 400.
+    const isoDate = z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Dates must be formatted as YYYY-MM-DD');
+
     const dateRangeSchema = {
-      startDate: z.string().describe('Start of the range, inclusive, as YYYY-MM-DD'),
-      endDate: z.string().describe('End of the range, inclusive, as YYYY-MM-DD')
+      startDate: isoDate.describe('Start of the range, inclusive, as YYYY-MM-DD'),
+      endDate: isoDate.describe('End of the range, inclusive, as YYYY-MM-DD'),
+      includeIntervalSamples: z
+        .boolean()
+        .optional()
+        .describe(
+          'Include high-volume interval samples (per-30-second and per-5-minute arrays such as ' +
+            'heart_rate, hrv, and class_5_min). Omitted by default because they are very large. ' +
+            'Only set this true for a short range where the detail is genuinely needed.'
+        )
     };
 
     // Add resources and tools for each endpoint.
@@ -192,10 +332,12 @@ export class OuraProvider {
         async (uri) => {
           let data;
           if (requiresDates) {
-            // For date-based resources, fetch last 7 days by default
-            const endDate = new Date().toISOString().split('T')[0];
-            const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            data = await this.fetchOuraData(name, { start_date: startDate, end_date: endDate });
+            // Last 7 days, bounded by the configured zone rather than UTC - near
+            // midnight those disagree, and the window would be off by a day.
+            data = await this.fetchOuraData(name, {
+              start_date: this.localDate(-7 * 24 * 60 * 60 * 1000),
+              end_date: this.localDate()
+            });
           } else {
             data = await this.fetchOuraData(name);
           }
@@ -218,11 +360,12 @@ export class OuraProvider {
           description: `${description} Returns records over an inclusive date range.`,
           inputSchema: dateRangeSchema
         },
-        async ({ startDate, endDate }) => {
-          const data = await this.fetchOuraData(name, {
-            start_date: startDate,
-            end_date: endDate
-          });
+        async ({ startDate, endDate, includeIntervalSamples }) => {
+          const data = await this.fetchOuraData(
+            name,
+            { start_date: startDate, end_date: endDate },
+            { includeIntervalSamples }
+          );
 
           return {
             content: [{

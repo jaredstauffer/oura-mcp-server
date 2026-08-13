@@ -1,77 +1,32 @@
-import { z } from 'zod';
+const OURA_API_BASE_URL = 'https://api.ouraring.com/v2';
 
-export interface OuraTokens {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
-}
-
+/**
+ * Authentication against the Oura API.
+ *
+ * Personal access tokens only. An earlier version of this class also accepted
+ * OAuth2 client credentials, but nothing ever ran the authorization-code flow
+ * to turn them into an access token, so that path could only ever fail at
+ * request time with "Not authenticated". Better to reject it up front.
+ */
 export class OuraAuth {
-  private baseUrl = 'https://api.ouraring.com/v2';
-  private tokens: OuraTokens;
+  private readonly accessToken: string;
 
-  constructor(personalAccessToken?: string, clientId?: string, clientSecret?: string, redirectUri?: string) {
-    if (personalAccessToken) {
-      this.tokens = {
-        accessToken: personalAccessToken
-      };
-    } else if (clientId && clientSecret) {
-      // Store OAuth credentials for later use
-      this.tokens = {
-        accessToken: '',
-        refreshToken: '',
-        expiresAt: 0
-      };
-    } else {
-      throw new Error('Either personal access token or OAuth credentials must be provided');
+  constructor(personalAccessToken: string) {
+    if (!personalAccessToken) {
+      throw new Error('A personal access token is required');
     }
+
+    this.accessToken = personalAccessToken;
   }
 
   async getHeaders(): Promise<Record<string, string>> {
-    if (!this.tokens.accessToken) {
-      throw new Error('Not authenticated');
-    }
-
-    // For OAuth tokens, check expiration and refresh if needed
-    if (this.tokens.expiresAt && this.tokens.expiresAt <= Date.now()) {
-      await this.refreshTokens();
-    }
-
     return {
-      'Authorization': `Bearer ${this.tokens.accessToken}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
-  private async refreshTokens(): Promise<void> {
-    if (!this.tokens.refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    const response = await fetch('https://api.ouraring.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: this.tokens.refreshToken,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to refresh token: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    this.tokens = {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresAt: Date.now() + data.expires_in * 1000,
+      Authorization: `Bearer ${this.accessToken}`,
+      'Content-Type': 'application/json'
     };
   }
 
   getBaseUrl(): string {
-    return this.baseUrl;
+    return OURA_API_BASE_URL;
   }
-} 
+}

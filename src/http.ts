@@ -2,6 +2,7 @@ import { config as dotenvConfig } from 'dotenv';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
@@ -41,7 +42,19 @@ async function main() {
     })
   );
 
-  app.post('/login', oauthProvider.handleLogin);
+  // The password is the only barrier between a public URL and the user's health
+  // data, and the SDK's rate limiting only covers its own OAuth endpoints - this
+  // route is ours, so without a limiter it can be guessed as fast as the host
+  // will serve requests.
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'too_many_requests', error_description: 'Too many sign-in attempts. Try again later.' }
+  });
+
+  app.post('/login', loginLimiter, oauthProvider.handleLogin);
 
   app.get('/healthz', (_req, res) => {
     res.json({ status: 'ok' });

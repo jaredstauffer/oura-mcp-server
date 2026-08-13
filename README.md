@@ -27,11 +27,14 @@ npm run build
 2. Create a [Personal Access Token](https://cloud.ouraring.com/personal-access-tokens)
 
 Set it as `OURA_PERSONAL_ACCESS_TOKEN`. See `.env.example` for the full list of
-variables.
+variables. Optionally set `OURA_TIMEZONE` to an IANA zone (e.g. `America/Denver`)
+so the "last 7 days" resource defaults line up with your local days rather than
+UTC.
 
-> The OAuth2 client credentials in `.env.example` are read but not usable yet:
-> `OuraAuth` stores them without ever running the authorization-code flow, so
-> requests fail with `Not authenticated`. Use a personal access token.
+Personal access tokens are the only supported credential. Earlier versions also
+accepted OAuth2 client id/secret, but nothing ever ran the authorization-code
+flow against Oura, so that path could only fail at request time; it has been
+removed rather than left as a trap.
 
 ---
 
@@ -66,6 +69,18 @@ Pass the token in `env` rather than relying on a `.env` file. `dotenv` resolves
 server is wherever the client happened to start — not this repo.
 
 ### Testing
+
+```bash
+npm test        # builds first, then runs the suite
+```
+
+22 tests across two suites, none of which need a live Oura token: `oauth.test.ts`
+drives the real OAuth flow over HTTP (discovery, dynamic registration, PKCE,
+single-use codes, refresh, bearer rejection), and `tools.test.ts` checks the tool
+and resource surface over stdio — including a regression test that stdout carries
+nothing but JSON-RPC.
+
+For a manual probe against real data:
 
 ```bash
 node test.js get_daily_sleep 2026-08-01
@@ -153,7 +168,19 @@ second replica pick up mid-conversation.
 `ring_configuration`, `daily_stress`, `daily_resilience`,
 `daily_cardiovascular_age`, `vO2_max`
 
-Date-based resources default to the last 7 days.
+Date-based resources default to the last 7 days, bounded by `OURA_TIMEZONE`.
+
+## Response shape
+
+Results are paginated by Oura via `next_token`; the server follows it to
+completion, so a wide date range returns every record rather than the first page.
+It stops after 25 pages and marks the response `truncated` rather than looping.
+
+Interval-sample fields — the per-30-second and per-5-minute arrays on `sleep`
+(`heart_rate`, `hrv`, `movement_30_sec`, `sleep_phase_5_min`) and
+`daily_activity` (`class_5_min`, `met`) — are stripped by default, since a month
+of them runs to megabytes and crowds out the conversation. Pass
+`includeIntervalSamples: true` on a narrow range when you need them.
 
 ## Available tools
 

@@ -8,18 +8,17 @@ export const OURA_API_BASE_URL = 'https://api.ouraring.com/v2';
  */
 export function createOuraProvider(): OuraProvider {
   const personalAccessToken = process.env.OURA_PERSONAL_ACCESS_TOKEN || '';
-  const clientId = process.env.OURA_CLIENT_ID || '';
-  const clientSecret = process.env.OURA_CLIENT_SECRET || '';
 
-  if (!personalAccessToken && (!clientId || !clientSecret)) {
-    throw new Error('Either OURA_PERSONAL_ACCESS_TOKEN or both OURA_CLIENT_ID and OURA_CLIENT_SECRET must be provided');
+  if (!personalAccessToken) {
+    throw new Error(
+      'OURA_PERSONAL_ACCESS_TOKEN must be set. Create one at ' +
+        'https://cloud.ouraring.com/personal-access-tokens.'
+    );
   }
 
   return new OuraProvider({
     personalAccessToken,
-    clientId,
-    clientSecret,
-    redirectUri: process.env.OURA_REDIRECT_URI || 'http://localhost:3000/callback'
+    timezone: process.env.OURA_TIMEZONE || 'UTC'
   });
 }
 
