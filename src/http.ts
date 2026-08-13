@@ -6,7 +6,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { SingleUserOAuthProvider } from './auth/oauth_provider.js';
-import { createOuraProvider, requireEnv } from './config.js';
+import { createOuraProvider, requireEnv, resolvePublicUrl } from './config.js';
 
 // Resolve .env against the repo root rather than the caller's cwd, matching the
 // stdio entrypoint. In hosted deployments the platform supplies the env instead.
@@ -15,9 +15,7 @@ dotenvConfig({ path: resolve(dirname(fileURLToPath(import.meta.url)), '..', '.en
 const SCOPES = ['oura:read'];
 
 async function main() {
-  const publicUrl = new URL(
-    requireEnv('PUBLIC_URL', 'Set it to the deployment\'s public https origin, e.g. https://oura-mcp.up.railway.app')
-  );
+  const publicUrl = resolvePublicUrl();
   const signingSecret = requireEnv('OAUTH_SIGNING_SECRET', 'Generate one with: openssl rand -hex 32');
   const password = requireEnv('MCP_AUTH_PASSWORD', 'This is the password you type when connecting Claude.');
 

@@ -23,6 +23,31 @@ export function createOuraProvider(): OuraProvider {
   });
 }
 
+/**
+ * The origin this server advertises in its OAuth metadata.
+ *
+ * Prefers an explicit PUBLIC_URL, but falls back to RAILWAY_PUBLIC_DOMAIN,
+ * which Railway injects once a domain exists. That avoids both the ordering
+ * problem (the app needs the domain to boot, but you generate the domain after
+ * deploying) and the typo risk of copying the origin by hand.
+ */
+export function resolvePublicUrl(): URL {
+  const explicit = process.env.PUBLIC_URL;
+  if (explicit) {
+    return new URL(explicit);
+  }
+
+  const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+  if (railwayDomain) {
+    return new URL(`https://${railwayDomain}`);
+  }
+
+  throw new Error(
+    'PUBLIC_URL must be set to the deployment\'s public https origin, e.g. https://oura-mcp.up.railway.app ' +
+      '(on Railway it is inferred from RAILWAY_PUBLIC_DOMAIN once you generate a domain).'
+  );
+}
+
 export function requireEnv(name: string, hint: string): string {
   const value = process.env[name];
 

@@ -104,11 +104,13 @@ PKCE. Authorization codes are single-use.
    | `OURA_PERSONAL_ACCESS_TOKEN` | your Oura token |
    | `OAUTH_SIGNING_SECRET` | the hex string from step 2 |
    | `MCP_AUTH_PASSWORD` | the password you'll type when connecting |
-   | `PUBLIC_URL` | the service's public origin, no trailing slash |
 
-   `PUBLIC_URL` is a chicken-and-egg step: generate the domain first, then set
-   the variable to that origin and redeploy. It has to match the real origin
-   exactly, because it's what the server advertises in its OAuth metadata.
+   You do not need to set `PUBLIC_URL` on Railway. The server falls back to
+   `RAILWAY_PUBLIC_DOMAIN`, which Railway injects once the service has a domain
+   (Settings → Networking → Public Networking → Generate Domain). Set
+   `PUBLIC_URL` explicitly only when hosting elsewhere, or to override the
+   advertised origin — it must then match the real origin exactly, since it's
+   what the server publishes in its OAuth metadata.
 4. Confirm the deploy: `curl https://your-app.up.railway.app/healthz`
 
 `PORT` is injected by Railway; don't set it yourself.
